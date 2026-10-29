@@ -1,0 +1,16 @@
+{
+  "name": "smart-library-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Selenium WebDriver end-to-end tests for Smart Library",
+  "scripts": {
+    "test": "node run-e2e.js",
+    "test:headed": "cross-env HEADED=1 node run-e2e.js"
+  },
+  "dependencies": {
+    "selenium-webdriver": "^4.27.0"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3"
+  }
+}

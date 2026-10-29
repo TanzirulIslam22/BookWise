@@ -1,0 +1,54 @@
+%% Sequence diagram — issuing a book (BorrowFacade coordinates the workflow).
+sequenceDiagram
+    autonumber
+    actor Lib as Librarian (Browser)
+    participant Ctrl as Borrowing Controller
+    participant Facade as BorrowFacade
+    participant MemR as MemberRepository
+    participant BookR as BookRepository
+    participant RecR as BorrowRecordRepository
+    participant Audit as AuditService
+    participant DB as MongoDB
+
+    Lib->>Ctrl: POST /api/borrowings/issue {memberId, bookId}
+    Ctrl->>Facade: issueBook(memberId, bookId)
+    Facade->>MemR: findById(memberId)
+    MemR->>DB: find member
+    DB-->>MemR: member document
+    MemR-->>Facade: member (or null)
+    alt member missing
+        Facade-->>Ctrl: throw ApiError(404, "Member not found")
+        Ctrl-->>Lib: 404 {success:false, message}
+    end
+
+    Facade->>RecR: countActiveByMember(memberId)
+    RecR->>DB: countDocuments({memberId, status:active})
+    DB-->>RecR: count
+    RecR-->>Facade: activeCount
+    alt activeCount >= limit (Student 3 / Faculty 5)
+        Facade-->>Ctrl: throw ApiError(409, "Borrowing limit reached")
+        Ctrl-->>Lib: 409 error message
+    end
+
+    Facade->>BookR: decrementAvailable(bookId)
+    BookR->>DB: findOneAndUpdate({_id, availableCopies:{$gt:0}}, {$inc:{availableCopies:-1}})
+    DB-->>BookR: updated book (or null)
+    BookR-->>Facade: book (or null)
+    alt no copy available
+        Facade-->>Ctrl: throw ApiError(409, "No copies available")
+        Ctrl-->>Lib: 409 error message
+    end
+
+    Facade->>Facade: dueDate = now + 14 days
+    Facade->>RecR: create({memberId, bookId, borrowedAt, dueDate, status:active})
+    RecR->>DB: insert borrow record
+    DB-->>RecR: saved record
+    RecR-->>Facade: record
+
+    Facade->>Audit: record(BOOK_ISSUED, {memberId, borrowRecordId, message})
+    Audit->>DB: insert audit event
+    Audit-->>Facade: saved event
+
+    Facade-->>Ctrl: {message, record}
+    Ctrl-->>Lib: 201 {success:true, message:"Book issued... Due date: ..."}
+    Lib->>Lib: show success toast + refresh active records

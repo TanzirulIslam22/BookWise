@@ -1,0 +1,457 @@
+﻿openapi: 3.0.3
+info:
+  title: Smart Library & Fine Management System API
+  description: >
+    REST API for a small academic library. Manages members, books, borrowing,
+    returns, overdue fines (Strategy pattern) and audit events.
+    Fine policy: Student 10 BDT/day; after day 7, 20 BDT/day; Faculty 0 BDT.
+  version: 1.0.0
+servers:
+  - url: http://localhost:5000
+    description: Local development server
+tags:
+  - name: Auth
+  - name: Members
+  - name: Books
+  - name: Borrowings
+  - name: Fines
+  - name: Audits
+  - name: Stats
+
+paths:
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in the single librarian/admin operator
+      description: >
+        Verifies the operator credentials configured through ADMIN_USERNAME
+        and ADMIN_PASSWORD environment variables. This is a simple
+        single-operator access gate for the web UI (full authentication is
+        out of scope for the assignment).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string, format: password }
+            example:
+              username: librarian
+              password: bookwise123
+      responses:
+        '200':
+          description: Credentials accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      username: { type: string }
+                      role: { type: string }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid username or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/members:
+    post:
+      tags: [Members]
+      summary: Register a new library member
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberCreateRequest'
+            example:
+              memberId: CSE-2203001
+              name: Tanvir Ahmed
+              email: tanvir@ruet.ac.bd
+              role: Student
+      responses:
+        '201':
+          description: Member created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    get:
+      tags: [Members]
+      summary: List and search members
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+          description: Search by name, memberId or email
+        - in: query
+          name: role
+          schema: { type: string, enum: [Student, Faculty, Librarian] }
+      responses:
+        '200':
+          description: List of members
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberList'
+
+  /api/members/{id}:
+    get:
+      tags: [Members]
+      summary: Get one member by MongoDB id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Member found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberSuccess'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/members/{id}/borrowings:
+    get:
+      tags: [Members]
+      summary: Active borrowing records of one member
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Active records
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/books:
+    post:
+      tags: [Books]
+      summary: Add a book to the catalog
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookCreateRequest'
+            example:
+              isbn: 9780134685991
+              title: The Pragmatic Programmer
+              author: Hunt and Thomas
+              totalCopies: 3
+      responses:
+        '201':
+          description: Book created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    get:
+      tags: [Books]
+      summary: List and search books by title, author or ISBN
+      parameters:
+        - in: query
+          name: q
+          schema: { type: string }
+      responses:
+        '200':
+          description: Book list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookList'
+
+  /api/books/{id}:
+    get:
+      tags: [Books]
+      summary: Get one book by MongoDB id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Book found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookSuccess'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/borrowings/issue:
+    post:
+      tags: [Borrowings]
+      summary: Issue an available book to a member (Facade workflow)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueRequest'
+            example:
+              memberId: 656f00000000000000000001
+              bookId: 656f00000000000000000002
+      responses:
+        '201':
+          description: Book issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BorrowSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          description: Role is not allowed to borrow
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: No copies available or borrowing limit reached
+
+  /api/borrowings/return/{id}:
+    post:
+      tags: [Borrowings]
+      summary: Return an issued book and calculate any fine
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+          description: Borrowing record id
+      responses:
+        '200':
+          description: Book returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReturnSuccess'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Record already returned
+
+  /api/borrowings:
+    get:
+      tags: [Borrowings]
+      summary: List borrowing records
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [active, returned] }
+      responses:
+        '200':
+          description: Record list
+
+  /api/borrowings/{id}:
+    get:
+      tags: [Borrowings]
+      summary: Get one borrowing record
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Record found
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/fines/overdue:
+    get:
+      tags: [Fines]
+      summary: Overdue records with live fine calculation
+      responses:
+        '200':
+          description: Overdue list with fines in BDT
+
+  /api/fines/preview/{borrowRecordId}:
+    get:
+      tags: [Fines]
+      summary: Fine preview for one record (no state change)
+      parameters:
+        - in: path
+          name: borrowRecordId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Fine preview
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/audits:
+    get:
+      tags: [Audits]
+      summary: Activity/audit history
+      parameters:
+        - in: query
+          name: eventType
+          schema:
+            type: string
+            enum: [MEMBER_CREATED, BOOK_ADDED, BOOK_ISSUED, BOOK_RETURNED, FINE_CALCULATED, OVERDUE_DETECTED]
+        - in: query
+          name: limit
+          schema: { type: integer, default: 100 }
+      responses:
+        '200':
+          description: Audit events
+
+  /api/stats:
+    get:
+      tags: [Stats]
+      summary: Dashboard statistics
+      responses:
+        '200':
+          description: Overview numbers
+
+components:
+  schemas:
+    MemberCreateRequest:
+      type: object
+      required: [memberId, name, role]
+      properties:
+        memberId:
+          type: string
+          example: CSE-2203001
+        name:
+          type: string
+          example: Tanvir Ahmed
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [Student, Faculty, Librarian]
+    MemberSuccess:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        data: { $ref: '#/components/schemas/Member' }
+    Member:
+      type: object
+      properties:
+        _id: { type: string }
+        memberId: { type: string }
+        name: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [Student, Faculty, Librarian] }
+        createdAt: { type: string, format: date-time }
+    MemberList:
+      type: object
+      properties:
+        success: { type: boolean }
+        count: { type: integer }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Member' }
+    BookCreateRequest:
+      type: object
+      required: [isbn, title, author, totalCopies]
+      properties:
+        isbn: { type: string }
+        title: { type: string }
+        author: { type: string }
+        totalCopies: { type: integer, minimum: 1 }
+    BookSuccess:
+      type: object
+      properties:
+        success: { type: boolean }
+        data: { $ref: '#/components/schemas/Book' }
+    Book:
+      type: object
+      properties:
+        _id: { type: string }
+        isbn: { type: string }
+        title: { type: string }
+        author: { type: string }
+        totalCopies: { type: integer }
+        availableCopies: { type: integer }
+    BookList:
+      type: object
+      properties:
+        success: { type: boolean }
+        count: { type: integer }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Book' }
+    IssueRequest:
+      type: object
+      required: [memberId, bookId]
+      properties:
+        memberId: { type: string, description: MongoDB _id of the member }
+        bookId: { type: string, description: MongoDB _id of the book }
+    BorrowSuccess:
+      type: object
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+        data: { $ref: '#/components/schemas/BorrowRecord' }
+    ReturnSuccess:
+      type: object
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+        fineAmount: { type: number, example: 50 }
+        overdueDays: { type: integer, example: 5 }
+        data: { $ref: '#/components/schemas/BorrowRecord' }
+    BorrowRecord:
+      type: object
+      properties:
+        _id: { type: string }
+        memberId: { type: string }
+        bookId: { type: string }
+        borrowedAt: { type: string, format: date-time }
+        dueDate: { type: string, format: date-time }
+        returnedAt: { type: string, nullable: true }
+        status: { type: string, enum: [active, returned] }
+        fineAmount: { type: number }
+    ErrorBody:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        message: { type: string, example: 'No copies of this book are currently available' }
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'
+    Conflict:
+      description: Duplicate or conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorBody'

@@ -1,0 +1,47 @@
+%% MongoDB document relationships — logical references, NOT relational foreign keys.
+%% In MongoDB there are no enforced foreign keys; the application stores the
+%% ObjectId of a related document and resolves it with Mongoose .populate().
+erDiagram
+    MEMBER ||--o{ BORROW_RECORD : "memberId reference"
+    BOOK ||--o{ BORROW_RECORD : "bookId reference"
+    BORROW_RECORD ||--o{ AUDIT_EVENT : "borrowRecordId reference (optional)"
+    MEMBER ||--o{ AUDIT_EVENT : "memberId reference (optional)"
+
+    MEMBER {
+        ObjectId _id PK
+        string memberId UK "e.g. RUET-CSE-001, unique index"
+        string name
+        string email "optional"
+        string role "Student | Faculty | Librarian"
+        date createdAt
+    }
+
+    BOOK {
+        ObjectId _id PK
+        string isbn UK "unique index"
+        string title "text index with author"
+        string author
+        int totalCopies "min 1"
+        int availableCopies "0..totalCopies, never negative"
+        date createdAt
+    }
+
+    BORROW_RECORD {
+        ObjectId _id PK
+        ObjectId memberId FK "logical reference to Member"
+        ObjectId bookId FK "logical reference to Book"
+        date borrowedAt
+        date dueDate "borrowedAt + 14 days"
+        date returnedAt "null while active"
+        string status "active | returned"
+        number fineAmount "0..N BDT, never negative"
+    }
+
+    AUDIT_EVENT {
+        ObjectId _id PK
+        string eventType "MEMBER_CREATED|BOOK_ADDED|BOOK_ISSUED|BOOK_RETURNED|FINE_CALCULATED|OVERDUE_DETECTED"
+        ObjectId memberId FK "optional logical reference"
+        ObjectId borrowRecordId FK "optional logical reference"
+        string message "human readable, max 300 chars"
+        date createdAt "index descending"
+    }

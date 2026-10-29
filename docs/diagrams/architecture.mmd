@@ -1,0 +1,41 @@
+%% Three-tier architecture with design-pattern locations.
+flowchart LR
+    subgraph client["Client (React + Vite + Tailwind)"]
+        UI["Pages: Dashboard, Members, Books, Issue/Return, Fines, Audit"]
+        TOAST["ToastContext (in-app notifications)"]
+        AX["Axios API client"]
+        UI --> AX
+        UI --> TOAST
+    end
+
+    subgraph server["Server (Express REST)"]
+        ROUTES["Routes + validation middleware"]
+        CTRL["Controllers (thin)"]
+        FACADE["BorrowFacade (FACADE)"]
+        FINE["FineService + FineStrategy classes (STRATEGY)"]
+        AUD["AuditService"]
+        REPO["Repositories (Member, Book, BorrowRecord, AuditEvent)"]
+        DBM["DatabaseManager (SINGLETON)"]
+        SWAG["Swagger UI /api-docs"]
+        ROUTES --> CTRL --> FACADE
+        CTRL --> FINE
+        FACADE --> FINE
+        FACADE --> AUD
+        FACADE --> REPO
+        AUD --> REPO
+        REPO --> DBM
+        ROUTES --> SWAG
+    end
+
+    subgraph db["MongoDB"]
+        M[(Member)] 
+        B[(Book)]
+        BR[(BorrowRecord)]
+        AE[(AuditEvent)]
+    end
+
+    AX -- "HTTP JSON /api" --> ROUTES
+    DBM --> M
+    DBM --> B
+    DBM --> BR
+    DBM --> AE

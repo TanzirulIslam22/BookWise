@@ -1,0 +1,12 @@
+%% Incremental SDLC model used for this project.
+flowchart LR
+    A["Increment 1<br/>Requirements &amp; design<br/>schemas, API contract, prototype"] --> B["Increment 2<br/>Member &amp; book management"]
+    B --> C["Increment 3<br/>Borrow &amp; return"]
+    C --> D["Increment 4<br/>Fines &amp; audit logging"]
+    D --> E["Increment 5<br/>Testing, Swagger,<br/>CI, Selenium, docs"]
+
+    A -.->|feedback: requirements gaps| A
+    B -.->|feedback: validation rules| A
+    C -.->|feedback: workflow fixes| B
+    D -.->|feedback: policy corrections| C
+    E -.->|feedback: coverage gaps| D

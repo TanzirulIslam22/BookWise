@@ -1,0 +1,923 @@
+% Smart Library & Fine Management System — CSE 3206 Sessional Report
+% Compile with: xelatex report.tex   (or: lualatex report.tex)
+% Run twice for correct TOC/figure numbering.
+%
+% Font note: this document requests Times New Roman via fontspec. If your
+% machine does not have that font (common on Linux/Overleaf), the fallback
+% TeX Gyre Termes is used — Termes is a Times-compatible font but is NOT
+% Times New Roman. Do not claim otherwise in submissions.
+\documentclass[12pt,a4paper]{article}
+
+% ---------- fonts & encoding ----------
+\usepackage{fontspec}
+\IfFontExistsTF{Times New Roman}{
+  \setmainfont{Times New Roman}
+}{
+  \setmainfont{TeX Gyre Termes} % substitute: Times-compatible, not Times New Roman
+}
+
+% ---------- layout & graphics ----------
+\usepackage{amsmath}
+\usepackage[top=1in,bottom=1in,left=1.25in,right=1.25in]{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{setspace}
+
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!8},
+  keywordstyle=\color{blue!70!black},
+  commentstyle=\color{green!40!black},
+  showstringspaces=false,
+  tabsize=2
+}
+
+\titleformat{\section}{\large\bfseries}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.6em}{}
+\titleformat{\subsubsection}{\normalsize\itshape}{\thesubsubsection}{0.6em}{}
+
+\setlength{\parskip}{0.4em}
+\setstretch{1.15}
+
+\newcommand{\placeholder}[1]{\textbf{[PLACEHOLDER: #1]}}
+\newcommand{\figpath}{figures/}
+
+\title{\textbf{Smart Library \& Fine Management System}\\[0.5em]
+\large Software Engineering Sessional Project Report}
+\author{%
+  Student Name: \placeholder{your name}\\
+  Student ID: \placeholder{your ID}\\
+  Supervisor/Instructor: \placeholder{instructor name}\\
+  Department of Computer Science \& Engineering\\
+  Rajshahi University of Engineering \& Technology (RUET)
+}
+\date{\placeholder{submission date}}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+
+\begin{abstract}
+This report presents the design, implementation and verification of the
+Smart Library \& Fine Management System, a full-stack web application
+developed for a small academic library. The system follows the complete
+Software Development Life Cycle using the Incremental Model and is built on
+the MERN stack (MongoDB, Express, React, Node.js) with Tailwind CSS. Five
+functional modules are implemented: member management, book catalog,
+borrow/return with borrowing limits, overdue fine management, and audit with
+in-application notifications. Three design patterns from three categories are
+applied in production code: Singleton (shared database manager), Facade
+(borrow/return workflow) and Strategy (interchangeable fine policies).
+Verification combines Test-Driven Development with Jest, dependency mocking,
+Supertest integration tests against an isolated in-memory MongoDB
+(64 tests, 89.8\% statement coverage at the time of writing), a Selenium
+WebDriver end-to-end test of the issue/return workflow, and a GitHub Actions
+continuous-integration pipeline. Swagger/OpenAPI documentation, learned
+independently, provides interactive API documentation at \texttt{/api-docs}.
+The report documents honest limitations, including the absence of
+authentication and of multi-document MongoDB transactions.
+
+\vspace{1em}
+\noindent\textbf{Keywords:} MERN stack, software engineering, design
+patterns, Test-Driven Development, Selenium, continuous integration,
+Swagger/OpenAPI, fine calculation.
+\end{abstract}
+
+\tableofcontents
+\listoffigures
+\newpage
+
+% =========================================================
+\section{Introduction}
+% =========================================================
+Libraries in academic institutions still manage borrowing records with
+spreadsheets or manual registers, which are error-prone when calculating
+overdue fines and tracking availability. This project builds a small but
+complete web-based library information system that manages members, books,
+borrowing and returning, overdue fines and an audit trail.
+
+The project serves a dual purpose: (1) a practical product for a small
+library, and (2) a vehicle to demonstrate Software Engineering techniques
+required by CSE 3206: requirements engineering, process models, design
+patterns, Test-Driven Development, mocking, integration testing, Selenium,
+configuration management, continuous integration and an independently
+learned tool (Swagger/OpenAPI).
+
+\emph{Note on the assignment sheet:} the original specification contains an
+inconsistency --- the heading states 10 marks while the marking scheme lists
+20 marks. The student should confirm the official mark distribution with the
+course instructor; this report does not assume either value.
+
+% =========================================================
+\section{Problem Statement}
+% =========================================================
+A small academic library must handle a growing set of members (students,
+faculty and staff), a book catalog with limited copies, and an overdue fine
+policy that differs by member category. Manual tracking leads to:
+incorrect availability counts, forgotten due dates, inconsistent fine
+calculations and no traceability of who did what. The problem is to design
+and implement a maintainable, testable and extensible system that automates
+these five concerns with persistent storage.
+
+% =========================================================
+\section{Objectives and Scope}
+% =========================================================
+\textbf{Objectives}
+\begin{enumerate}[leftmargin=1.5em]
+  \item Implement five functional modules with persistent MongoDB storage.
+  \item Apply at least three design patterns from three categories in real
+        workflows.
+  \item Practice TDD, mocking and integration testing with measurable coverage.
+  \item Use Git feature branches, pull requests and CI for configuration
+        management.
+  \item Document the API with Swagger/OpenAPI (independently learned tool).
+  \item Produce a complete engineering report with UML and test evidence.
+\end{enumerate}
+
+\textbf{In scope:} role-labelled members (no authentication), issue/return
+with limits, fine calculation, audit log, web UI, API documentation, CI.
+
+\textbf{Out of scope:} authentication/authorization, online payments, email
+or SMS notifications, barcode/RFID, multi-branch libraries, pagination.
+
+% =========================================================
+\section{Functional Requirements}
+% =========================================================
+The numbered functional requirements (FR-1.1 to FR-5.4) across the five
+modules are listed in Table~\ref{tab:fr-summary} and fully specified in
+\texttt{docs/requirements.md}. Each FR is covered by at least one automated
+test.
+
+\begin{table}[H]
+\centering
+\caption{Functional requirement summary}
+\label{tab:fr-summary}
+\begin{tabular}{>{\bfseries}p{2.2cm}p{10.5cm}}
+\toprule
+Module & Requirements \\
+\midrule
+Members & FR-1.1 register with unique ID; FR-1.2 reject duplicates (409);
+FR-1.3 validate fields/role; FR-1.4 search and filter. \\
+Books & FR-2.1 add with unique ISBN and copies; FR-2.2 reject duplicates and
+invalid counts; FR-2.3 search by title/author/ISBN; FR-2.4
+$0 \le$ available $\le$ total. \\
+Borrow/return & FR-3.1 issue with $+14$-day due date; FR-3.2 limits
+(Student 3, Faculty 5, Librarian 0); FR-3.3 validate member/book/stock;
+FR-3.4 return restores stock (capped); FR-3.5 list active/returned. \\
+Fines & FR-4.1 whole overdue days, never negative; FR-4.2 Student
+10 BDT/day; FR-4.3 20 BDT/day after day 7; FR-4.4 Faculty 0 BDT;
+FR-4.5 on-time return = 0; FR-4.6 overdue list with live fines. \\
+Audit & FR-5.1 record issue/return/fine/overdue/member/book events;
+FR-5.2 typed events with message and timestamp; FR-5.3 success/error
+messages surfaced in the UI; FR-5.4 filterable history. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Fine policy boundary conditions (FR-4.2/4.3):}
+let $d$ be whole overdue days. For students,
+\[
+\text{fine}(d) =
+\begin{cases}
+10d & 0 \le d \le 7\\
+70 + 20(d-7) & d > 7
+\end{cases}
+\]
+so $d=7 \Rightarrow 70$ BDT and $d=8 \Rightarrow 90$ BDT. Faculty:
+$\text{fine}(d)=0\;\forall d$. A book returned on or before the due date has
+$d=0$ and fine $0$.
+
+% =========================================================
+\section{Non-Functional Requirements}
+% =========================================================
+Eight non-functional requirements cover usability (one screen per module,
+visible feedback), maintainability (small single-responsibility modules),
+data integrity (unique IDs, atomic stock updates, non-negative fines),
+reliability (centralised error handler, consistent JSON errors),
+basic security (no credentials in code, input validation), performance
+(sub-second responses for a small library), testability (DI + mocks +
+isolated test DB) and extensibility (new fine policy = one new class).
+Full text: \texttt{docs/requirements.md} \S 2.
+
+% =========================================================
+\section{User Stories and Use Cases}
+% =========================================================
+Nine user stories (e.g.\ ``As a librarian, I want to process a return that
+automatically calculates any fine, so that I do not have to count overdue
+days by hand'') and three fully written use cases (Issue a Book; Return a
+Book and Calculate Fine; View Overdue Fines) with actors, preconditions,
+main and alternative flows are documented in \texttt{docs/requirements.md}
+\S 3--4.
+
+% =========================================================
+\section{SDLC Process Model}
+% =========================================================
+The \textbf{Incremental Model} was selected (Figure~\ref{fig:sdlc}). The
+five modules are largely independent; each increment produces a working,
+testable slice: (I1) requirements and design, (I2) members and books,
+(I3) borrow/return, (I4) fines and audit, (I5) testing hardening, Swagger,
+CI, Selenium and documentation. Incremental development matches a
+single-developer sessional project: risks are isolated per increment, and a
+defect in the fine policy cannot destabilise member registration because
+they are separate increments and separate packages.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{\figpath sdlc-incremental.png}{
+  \includegraphics[width=0.95\textwidth]{\figpath sdlc-incremental.png}
+}{
+  \fbox{\parbox{0.9\textwidth}{\centering\vspace{1em}
+  \placeholder{render docs/diagrams/sdlc-incremental.mmd to
+  figures/sdlc-incremental.png (see figures/README.md)}\vspace{1em}}}
+}
+\caption{Incremental development model used in this project
+(source: \texttt{docs/diagrams/sdlc-incremental.mmd})}
+\label{fig:sdlc}
+\end{figure}
+
+% =========================================================
+\section{System Architecture}
+% =========================================================
+Three tiers: a React single-page application talks JSON/HTTP to an Express
+REST API, which persists through Mongoose to MongoDB. Inside the server,
+controllers are thin; the \textbf{BorrowFacade} coordinates multi-step
+workflows; repositories isolate persistence; the \textbf{FineService}
+selects a \textbf{Strategy} for each fine policy; \textbf{DatabaseManager}
+(Singleton) owns the single connection manager.
+Figure~\ref{fig:arch} shows the component view.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{\figpath architecture.png}{
+  \includegraphics[width=0.9\textwidth]{\figpath architecture.png}
+}{
+  \fbox{\parbox{0.85\textwidth}{\centering\vspace{1em}
+  \placeholder{create figures/architecture.png from the component description
+  or the Mermaid source in docs/diagrams/}\vspace{1em}}}
+}
+\caption{Three-tier architecture with pattern locations}
+\label{fig:arch}
+\end{figure}
+
+% =========================================================
+\section{Module Descriptions}
+% =========================================================
+\textbf{M1 Members:} unique \texttt{memberId}, roles Student/Faculty/Librarian,
+search/filter; implemented in \texttt{memberController.js} +
+\texttt{MemberRepository} + React page \texttt{Members.jsx}.
+\textbf{M2 Books:} unique ISBN, copy counters guarded by schema validation and
+an atomic conditional update; \texttt{bookController.js}, \texttt{Books.jsx}.
+\textbf{M3 Borrow/return:} \texttt{BorrowFacade.issueBook/returnBook};
+14-day loans; per-role limits; stock updates; \texttt{BorrowReturn.jsx}.
+\textbf{M4 Fines:} strategy-based calculation, live overdue endpoint;
+\texttt{Fines.jsx}.
+\textbf{M5 Audit/notifications:} \texttt{AuditService} persists typed events;
+\texttt{ToastContext.jsx} shows in-app success/error messages;
+\texttt{Audit.jsx} renders the history.
+
+% =========================================================
+\section{UI Prototype}
+% =========================================================
+A low-fidelity wireframe was produced before implementation
+(\texttt{docs/diagrams/ui-wireframe.md}, Figure~\ref{fig:proto}). It planned
+the sidebar layout, dashboard cards, member/book forms and tables, the
+issue/return workflow, the fines policy cards and the audit list. The
+prototype is a planning artefact and is not presented as evidence of
+functioning software.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{\figpath ui-wireframe.png}{
+  \includegraphics[width=0.9\textwidth]{\figpath ui-wireframe.png}
+}{
+  \fbox{\parbox{0.85\textwidth}{\centering\vspace{1em}
+  \placeholder{optional: render the wireframe sketch to
+  figures/ui-wireframe.png}\vspace{1em}}}
+}
+\caption{UI wireframe (planning prototype)}
+\label{fig:proto}
+\end{figure}
+
+% =========================================================
+\section{MongoDB Data Model}
+% =========================================================
+Four collections: \texttt{Member}, \texttt{Book}, \texttt{BorrowRecord} and
+\texttt{AuditEvent} (Table~\ref{tab:schema}). MongoDB is document-oriented:
+there are no foreign keys. \texttt{BorrowRecord} stores the
+\texttt{\_id} of the member and book as \emph{logical references}, resolved
+in the API with Mongoose \texttt{populate()} when names are needed for the
+UI. Indexes cover unique \texttt{memberId}/ISBN, text search on
+title/author, and the overdue query (\texttt{status, dueDate}).
+
+\begin{table}[H]
+\centering
+\caption{MongoDB collections (Mongoose schemas)}
+\label{tab:schema}
+\small
+\begin{tabular}{>{\bfseries}p{2.6cm}p{9.8cm}}
+\toprule
+Collection & Fields \\
+\midrule
+Member & \_id, memberId (unique), name, email, role (Student/Faculty/Librarian), createdAt \\
+Book & \_id, isbn (unique), title, author, totalCopies ($\ge 1$),
+availableCopies ($0\ldots$totalCopies), timestamps \\
+BorrowRecord & \_id, memberId $\rightarrow$ Member, bookId $\rightarrow$ Book,
+borrowedAt, dueDate, returnedAt, status (active/returned), fineAmount ($\ge 0$) \\
+AuditEvent & \_id, eventType (enum of 6 types), memberId?, borrowRecordId?,
+message, createdAt (index, descending) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\IfFileExists{\figpath mongodb-relationships.png}{
+  \includegraphics[width=0.95\textwidth]{\figpath mongodb-relationships.png}
+}{
+  \fbox{\parbox{0.9\textwidth}{\centering\vspace{1em}
+  \placeholder{render docs/diagrams/mongodb-relationships.mmd to
+  figures/mongodb-relationships.png}\vspace{1em}}}
+}
+\caption{Document relationships (logical references, not relational FKs)}
+\label{fig:er}
+\end{figure}
+
+% =========================================================
+\section{REST API}
+% =========================================================
+Thirteen endpoints (Table~\ref{tab:api}) are implemented, validated and
+documented in the OpenAPI file \texttt{server/docs/openapi.yaml}. Errors use
+a consistent body \verb|{"success": false, "message": "..."}| via one
+centralised error handler; status codes: 400 validation, 403 role, 404 not
+found, 409 conflict, 500 unexpected.
+
+\begin{table}[H]
+\centering
+\caption{REST API endpoints}
+\label{tab:api}
+\small
+\begin{tabular}{llp{6.8cm}}
+\toprule
+Method & URL & Purpose \\
+\midrule
+POST & /api/members & Register member (409 on duplicate ID) \\
+GET & /api/members?q=\&role= & List/search members \\
+GET & /api/members/:id & Member details \\
+POST & /api/books & Add book (409 on duplicate ISBN) \\
+GET & /api/books?q= & Search by title/author/ISBN \\
+GET & /api/books/:id & Book details \\
+POST & /api/borrowings/issue & Issue \{memberId, bookId\} (Facade) \\
+POST & /api/borrowings/return/:id & Return + fine calculation \\
+GET & /api/borrowings?status= & Active/returned records \\
+GET & /api/fines/overdue & Overdue list with live fines \\
+GET & /api/fines/preview/:id & Fine preview (read-only) \\
+GET & /api/audits?eventType= & Audit history \\
+GET & /api/stats & Dashboard statistics \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =========================================================
+\section{Design Patterns}
+% =========================================================
+
+\subsection{Singleton — DatabaseManager}
+\textbf{Category: creational.} \textbf{Problem:} the application must not
+create a new MongoDB connection manager per request; initialisation and
+errors must be handled in one place. \textbf{Location:}
+\texttt{server/src/database/DatabaseManager.js}. \texttt{getInstance()}
+returns the single instance held in a static field; \texttt{connect()}
+reuses an existing connection. \textbf{Benefit:} one owner of the connection
+lifecycle, predictable shutdown in tests. \textbf{Honest note:} the MongoDB
+driver already pools connections — Singleton does not mean one socket and
+does not automatically improve throughput. \textbf{Rejected alternative:}
+Prototype — cloning a database manager is meaningless here; there is no
+state worth duplicating and duplicated managers would fragment the
+connection lifecycle.
+
+\begin{lstlisting}[caption={Singleton core (excerpt)},label=lst:singleton]
+class DatabaseManager {
+  static instance = null;
+  static getInstance() {
+    if (DatabaseManager.instance === null) {
+      DatabaseManager.instance = new DatabaseManager();
+    }
+    return DatabaseManager.instance;
+  }
+  async connect(uri) { /* reuse or establish connection */ }
+}
+\end{lstlisting}
+
+\subsection{Facade — BorrowFacade}
+\textbf{Category: structural.} \textbf{Problem:} issuing a book touches
+member lookup, role/limit checks, atomic stock decrement, record creation,
+due-date assignment and audit logging; returning adds fine calculation.
+Without a facade, controllers would duplicate and mix this workflow.
+\textbf{Location:} \texttt{server/src/facades/BorrowFacade.js}. The
+controller calls exactly \texttt{borrowFacade.issueBook(memberId, bookId)}
+and \texttt{returnBook(id)}. Persistence and fine calculation are delegated
+to injected repositories and services (kept small on purpose).
+\textbf{Benefit:} thin controllers, one readable workflow, unit-testable
+with mocks. \textbf{Rejected alternative:} Adapter — Adapter solves
+\emph{interface incompatibility} with a third-party API; here all
+collaborators are our own classes and the need is \emph{orchestration}, not
+interface conversion.
+
+\subsection{Strategy — Fine Calculation}
+\textbf{Category: behavioural.} \textbf{Problem:} fine rules differ by
+member category and are expected to change; burying \texttt{if role == ...}
+in a controller would scatter the policy.
+\textbf{Location:} \texttt{server/src/strategies/} —
+\texttt{StudentFineStrategy} (10 BDT/day), \texttt{FacultyFineStrategy}
+(0), \texttt{OverdueHeavyFineStrategy} (decorator: first 7 days at the base
+rate, then 20 BDT/day). \texttt{FineService.getStrategyForRole()} selects
+and composes them behind the shared \texttt{calculateFine(days)} interface.
+\textbf{Benefit:} substitutable policies; a new policy (e.g.\ Staff) is a
+new class plus one switch case — existing strategies remain untouched
+(open/closed). \textbf{Rejected alternative:} State — State models one
+object whose behaviour changes with its \emph{internal state}; here we have
+a family of interchangeable algorithms chosen by an \emph{external}
+attribute (role), which is Strategy's definition.
+
+\begin{lstlisting}[caption={Strategy selection (excerpt)},label=lst:strategy]
+getStrategyForRole(role) {
+  switch (role) {
+    case 'Student':
+      return new OverdueHeavyFineStrategy(
+        new StudentFineStrategy(10), 7, 20);
+    case 'Faculty':
+    case 'Librarian':
+      return new FacultyFineStrategy();
+    default:
+      throw new Error(`Unknown member role: ${role}`);
+  }
+}
+\end{lstlisting}
+
+\textbf{Test evidence:} \texttt{tests/unit/fineStrategy.test.js} verifies
+0/1/5/7/8/10/14-day boundaries and invalid inputs;
+\texttt{tests/unit/borrowFacade.test.js} verifies facade coordination with
+fully mocked dependencies.
+
+% =========================================================
+\section{UML Diagrams}
+% =========================================================
+Figure~\ref{fig:class} shows the class diagram containing the actual classes
+of the codebase; Figures~\ref{fig:seq-issue} and \ref{fig:seq-return} show
+the issue and return+fine sequences. Mermaid sources are in
+\texttt{docs/diagrams/}.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{\figpath class-diagram.png}{
+  \includegraphics[width=0.98\textwidth]{\figpath class-diagram.png}
+}{
+  \fbox{\parbox{0.9\textwidth}{\centering\vspace{1em}
+  \placeholder{render docs/diagrams/class-diagram.mmd to
+  figures/class-diagram.png}\vspace{1em}}}
+}
+\caption{UML class diagram (actual implemented classes)}
+\label{fig:class}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\IfFileExists{\figpath sequence-issue.png}{
+  \includegraphics[width=0.98\textwidth]{\figpath sequence-issue.png}
+}{
+  \fbox{\parbox{0.9\textwidth}{\centering\vspace{1em}
+  \placeholder{render sequence-issue.mmd}\vspace{1em}}}
+}
+\caption{Sequence diagram: issuing a book via BorrowFacade}
+\label{fig:seq-issue}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\IfFileExists{\figpath sequence-return.png}{
+  \includegraphics[width=0.98\textwidth]{\figpath sequence-return.png}
+}{
+  \fbox{\parbox{0.9\textwidth}{\centering\vspace{1em}
+  \placeholder{render sequence-return.mmd}\vspace{1em}}}
+}
+\caption{Sequence diagram: return with Strategy-based fine calculation}
+\label{fig:seq-return}
+\end{figure}
+
+A use-case diagram is shown in Figure~\ref{fig:usecase}; sources:
+\texttt{docs/diagrams/use-case.mmd} (UML notation) and
+\texttt{use-case-graph.mmd} (renderable variant).
+
+\begin{figure}[H]
+\centering
+\IfFileExists{\figpath use-case.png}{
+  \includegraphics[width=0.95\textwidth]{\figpath use-case.png}
+}{
+  \fbox{\parbox{0.9\textwidth}{\centering\vspace{1em}
+  \placeholder{render use-case.mmd / use-case-graph.mmd to
+  figures/use-case.png}\vspace{1em}}}
+}
+\caption{Use-case diagram (actors and included sub-functions)}
+\label{fig:usecase}
+\end{figure}
+
+% =========================================================
+\section{Implementation Overview}
+% =========================================================
+\textbf{Backend.} Node.js 22 + Express 4. \texttt{app.js} performs manual
+dependency injection: repositories $\rightarrow$ services $\rightarrow$
+facade $\rightarrow$ controllers $\rightarrow$ routes, so tests can replace
+any collaborator. Request validation uses a small custom middleware
+(\texttt{validate.js}); errors flow to \texttt{errorHandler.js}.
+Stock safety: \texttt{decrementAvailable} uses a conditional atomic update
+\texttt{\{availableCopies: \{\$gt: 0\}\} with \$inc: -1}, so two concurrent
+issues cannot both take the last copy. Multi-document transactions are
+\emph{not} used (a local standalone MongoDB does not support them without a
+replica set); the ordered facade workflow plus the atomic decrement is the
+documented, honest alternative — it is safe at this scale but is not a
+transactional guarantee.
+
+\textbf{Frontend.} React 18 + Vite 5 + Tailwind CSS 3.4, React Router pages
+(Dashboard, Members, Books, Issue/Return, Fines, Audit), Axios client, and a
+\texttt{ToastContext} for in-app success/error notifications. Pages show
+loading, empty and error states and validate required fields before
+submitting.
+
+% =========================================================
+\section{TDD Workflow}
+% =========================================================
+Fine calculation was developed test-first. The recorded cycle
+(\texttt{docs/tdd-workflow.md}, logs in \texttt{docs/evidence/}): with the
+implementation in its unimplemented state, the Student strategy tests failed
+(\texttt{expected 50, received 0}; 2 failed / 3 passed) — \textbf{Red};
+after implementing \texttt{return days * perDayRate}, all 5 focused tests
+passed — \textbf{Green}; extraction of the heavy-overdue decorator and
+service wiring with the suite still green — \textbf{Refactor}. TDD was
+chosen because fine rules are precise business logic whose silent breakage
+is expensive; boundary tests (day 7 vs.\ day 8) force the edge cases to
+exist.
+
+% =========================================================
+\section{Mocking and Integration Testing}
+% =========================================================
+\textbf{Mocking.} \texttt{tests/unit/borrowFacade.test.js} replaces
+\texttt{memberRepository}, \texttt{bookRepository},
+\texttt{borrowRecordRepository}, \texttt{fineService} and
+\texttt{auditService} with \texttt{jest.fn()} objects. Assertions verify,
+for example, that exactly one \texttt{BOOK\_ISSUED} audit event is recorded
+on success and \emph{none} on failure paths — without any database.
+
+\textbf{Integration.} \texttt{tests/integration/api.test.js} (28 tests)
+drives the real Express app with Supertest against an isolated
+MongoDB produced by \texttt{mongodb-memory-server} (or
+\texttt{MONGODB\_URI\_TEST} if provided), with full cleanup between tests —
+development and Atlas data cannot be touched. Workflows covered: member and
+book creation, duplicates, validation failures, issue, unavailable book,
+borrow limit, on-time return (fine 0), overdue returns (50 BDT at 5 days;
+90 BDT at day 8 for students; 0 for faculty), fine endpoints, audits and
+dashboard stats.
+
+\textbf{Coverage (actual run, 64 tests, all passing):}
+statements 89.77\%, branches 73.33\%, functions 91.01\%, lines 90.88\%
+(\texttt{npm run test:coverage}; full table in Appendix~\ref{app:coverage}).
+Branch coverage is lowest in the centralised error handler's rarely-hit
+branches — identified as an improvement target. Coverage measures execution,
+not correctness; it is reported together with the assertions' intent.
+
+% =========================================================
+\section{Selenium Testing}
+% =========================================================
+\texttt{e2e/tests/issueAndReturn.e2e.js} drives Chrome through the built
+React application: open dashboard $\rightarrow$ add book $\rightarrow$
+register member $\rightarrow$ issue the book via the UI selects
+$\rightarrow$ assert the success toast (``Due date'') and the active
+borrowing row $\rightarrow$ click Return $\rightarrow$ assert ``No fine''.
+Stable \texttt{data-testid} attributes are used as selectors. The
+orchestrator \texttt{e2e/run-e2e.js} starts the backend in in-memory demo
+mode, serves the frontend with \texttt{vite preview} on port 4173, waits for
+health, runs the test and shuts down. \textbf{Recorded result on the
+development machine: E2E TEST PASSED (6/6 steps)}; output in
+Appendix~\ref{app:e2e}. Selenium runs locally and in the CI job for
+ubuntu-latest (Chrome preinstalled, Selenium Manager fetches ChromeDriver).
+
+% =========================================================
+\section{Git/GitHub Configuration Management}
+% =========================================================
+Branch naming convention and full command recipes are in
+\texttt{docs/git-workflow.md}: \texttt{feature/member-management},
+\texttt{feature/book-catalog}, \texttt{feature/borrow-return},
+\texttt{feature/fine-strategy}, \texttt{test/unit-and-integration},
+\texttt{test/selenium-e2e}, \texttt{docs/swagger-openapi},
+\texttt{ci/github-actions}. Commit messages follow a short imperative
+summary with a scope prefix (e.g.\ \texttt{feat: add heavy-overdue fine
+strategy with boundary tests}).
+
+\placeholder{Append Git evidence produced on YOUR repository:}
+\texttt{git log --oneline --graph --all} screenshot (Appendix~\ref{app:git}),
+contribution of your own commits, and the README as delivered in this
+repository.
+
+% =========================================================
+\section{Pull-Request Review Evidence}
+% =========================================================
+The report requires at least one accepted PR and one rejected/revised PR
+with reviews. \texttt{docs/git-workflow.md} \S 3 contains the review
+checklist used (correctness, tests, readability, error handling, secrets,
+docs, scope).
+
+\placeholder{Paste real PR evidence: accepted PR link/screenshot with review
+comments; rejected or revised PR link/screenshot with the change requests
+and your follow-up commits (Appendix~\ref{app:pr}). Do not fabricate reviews.}
+
+% =========================================================
+\section{Merge-Conflict Resolution Evidence}
+% =========================================================
+A safe, reproducible conflict exercise (two branches editing the same README
+line, merge, resolve markers, verify) is documented in
+\texttt{docs/git-workflow.md} \S 4.
+
+\placeholder{Include screenshots of the conflicted file with conflict
+markers and of the resolved commit (Appendix~\ref{app:conflict}).}
+
+% =========================================================
+\section{Continuous Integration (GitHub Actions)}
+% =========================================================
+\texttt{.github/workflows/ci.yml} runs on pushes and pull requests to
+\texttt{main} with three jobs: \textbf{backend-tests} (checkout, Node 20,
+\texttt{npm ci} from the lockfile, \texttt{npm run test:coverage} with the
+in-memory MongoDB — no private credentials required, coverage uploaded as an
+artifact), \textbf{frontend-build} (\texttt{npm ci} + \texttt{vite build})
+and \textbf{selenium-e2e} (build + preview + browser test on the runner).
+Failures are diagnosed by opening the Actions run $\rightarrow$ failed job
+$\rightarrow$ step log.
+
+\placeholder{A green checkmark on GitHub only exists after you push and the
+runners succeed — include a screenshot of the successful run in
+Appendix~\ref{app:ci} and state the run number honestly.}
+
+% =========================================================
+\section{Swagger/OpenAPI — Self-Directed Tool}
+% =========================================================
+\textbf{What was learned and why.} API documentation that stays usable
+after the developer leaves the room. \textbf{Application.}
+\texttt{server/docs/openapi.yaml} (OpenAPI 3.0) documents every implemented
+endpoint with request/response schemas and examples; \texttt{swagger-ui-express}
+serves interactive docs at \texttt{/api-docs}; the raw spec is exposed at
+\texttt{/api/openapi.json}. A live check on the development machine returned
+HTTP 200 for both (Appendix~\ref{app:swagger}).
+
+\textbf{Demonstration.} Open \texttt{http://localhost:5000/api-docs},
+expand \texttt{POST /api/books}, press \emph{Try it out}, execute a sample
+book creation, and observe the 201 response — the same call the React form
+makes.
+
+\textbf{Benefits vs.\ alternatives.} Compared with a README: structured,
+versionable, and rendered as interactive docs instead of prose that drifts.
+Compared with a Postman collection: shareable as a URL/spec, diff-able in
+Git, and vendor-neutral. \textbf{Limitations:} the spec is maintained by
+hand (no automatic generation from Express code), response schemas are
+summarised rather than exhaustive, and authentication schemes are not
+documented because the system has none.
+
+\textbf{Learning process (personalise before submission):} resources used
+were the OpenAPI specification (\texttt{swagger.io/specification}) and the
+swagger-ui-express README; \placeholder{describe one difficulty you hit
+(e.g.\ YAML indentation) and how you resolved it}.
+
+% =========================================================
+\section{Learning Log}
+% =========================================================
+The learning-log template with columns (date, task, resource, learning,
+challenge, solution, evidence, time) plus recommended official resources for
+React, Tailwind, Node/Express, MongoDB/Mongoose, Jest, Supertest, Selenium,
+Git/GitHub, Actions, OpenAPI and LaTeX, and a resource-evaluation method, is
+provided in \texttt{docs/learning-log.md}. Sample rows are explicitly marked
+\textbf{[EXAMPLE]} and must be replaced with your real sessions.
+
+\placeholder{Attach your completed learning log (Appendix~\ref{app:log}).}
+
+% =========================================================
+\section{Reflection Essay (500--700 words)}
+% =========================================================
+\input{sections/reflection}
+
+% =========================================================
+\section{Limitations}
+% =========================================================
+\begin{enumerate}[leftmargin=1.5em]
+  \item No authentication/authorization; roles are labels only.
+  \item Fines are computed but not paid or waived.
+  \item In-memory demo mode (\texttt{start:memory}) is non-persistent by design.
+  \item Regex-based search instead of Atlas Search; no pagination.
+  \item No multi-document transactions; atomic conditional stock update is
+        the documented alternative (safe at small scale, not a full
+        transactional guarantee).
+  \item The OpenAPI spec is hand-maintained and can drift if endpoints change
+        without updating the YAML.
+  \item CI status on GitHub must be evidenced by an actual successful run on
+        your repository.
+\end{enumerate}
+
+% =========================================================
+\section{Future Improvements}
+% =========================================================
+JWT-based authentication with real role checks; fine payment records;
+pagination and Atlas Search; a replica-set deployment enabling true
+transactions; generating the OpenAPI spec from code (or tests asserting
+spec/route parity); Dockerised deployment; notification preferences;
+borrow-history export.
+
+% =========================================================
+\section{Conclusion}
+% =========================================================
+The Smart Library \& Fine Management System delivers five working modules on
+the required MERN + Tailwind stack, applying the Incremental Model, three
+design patterns in genuine production paths (Singleton, Facade, Strategy),
+TDD with recorded Red--Green evidence, mocked unit tests, Supertest
+integration tests against an isolated database, a passing Selenium
+end-to-end workflow, a GitHub Actions pipeline and hand-authored Swagger
+documentation. The engineering artefacts — requirements, diagrams, tests,
+CI and documentation — describe the same system that the code implements,
+with limitations stated honestly rather than glossed over.
+
+% =========================================================
+\section{References}
+% =========================================================
+\begin{enumerate}[leftmargin=1.6em]\small
+  \item Express.js Team, ``Express 4.x Guide,'' \url{https://expressjs.com/en/guide/}, accessed 2026.
+  \item MongoDB, Inc., ``Mongoose ODM Documentation,'' \url{https://mongoosejs.com/docs/}, accessed 2026.
+  \item MongoDB, Inc., ``MongoDB Manual: Documents and Schema Design,'' \url{https://www.mongodb.com/docs/manual/}, accessed 2026.
+  \item React Team, ``React Documentation,'' \url{https://react.dev/}, accessed 2026.
+  \item Tailwind Labs, ``Tailwind CSS v3 Documentation,'' \url{https://v3.tailwindcss.com/docs}, accessed 2026.
+  \item Jest Team, ``Jest Testing Framework,'' \url{https://jestjs.io/docs/}, accessed 2026.
+  \item Supertest contributors, ``supertest,'' \url{https://github.com/ladjs/supertest}, accessed 2026.
+  \item Selenium Project, ``Selenium WebDriver Documentation,'' \url{https://www.selenium.dev/documentation/webdriver/}, accessed 2026.
+  \item OpenAPI Initiative, ``OpenAPI Specification 3.0.3,'' \url{https://swagger.io/specification/}, accessed 2026.
+  \item GitHub, ``GitHub Actions Documentation,'' \url{https://docs.github.com/en/actions}, accessed 2026.
+  \item Gamma, E., Helm, R., Johnson, R., Vlissides, J. \emph{Design Patterns: Elements of Reusable Object-Oriented Software}. Addison-Wesley, 1995.
+  \item Sommerville, I. \emph{Software Engineering}, 10th ed. Pearson, 2016.
+  \item mongodb-memory-server contributors, \url{https://github.com/typegoose/mongodb-memory-server}, accessed 2026.
+\end{enumerate}
+
+% =========================================================
+\appendix
+\section{Key Code Excerpts}
+\label{app:code}
+% =========================================================
+Full source is in the project repository. Additional excerpts: the complete
+Singleton (\texttt{server/src/database/DatabaseManager.js}), the heavy-overdue
+decorator (\texttt{server/src/strategies/OverdueHeavyFineStrategy.js}) and
+the atomic stock decrement (\texttt{server/src/repositories/BookRepository.js}).
+
+\begin{lstlisting}[caption={Heavy-overdue decorator (core)},label=lst:heavy]
+calculateFine(overdueDays) {
+  const days = Number(overdueDays);
+  if (!Number.isInteger(days) || days < 0) {
+    throw new Error('overdueDays must be a non-negative whole number');
+  }
+  if (days <= this.threshold) {
+    return this.baseStrategy.calculateFine(days);
+  }
+  const basePart = this.baseStrategy.calculateFine(this.threshold);
+  const extraDays = days - this.threshold;
+  return basePart + extraDays * this.heavyRate;
+}
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Atomic availability decrement},label=lst:atomic]
+async decrementAvailable(id) {
+  return this.model.findOneAndUpdate(
+    { _id: id, availableCopies: { $gt: 0 } },
+    { $inc: { availableCopies: -1 } },
+    { new: true }
+  );
+}
+\end{lstlisting}
+
+% =========================================================
+\section{Test Results}
+\label{app:tests}
+% =========================================================
+\textbf{Unit + integration run (recorded):} 4 suites, 64 tests, all passing
+(\texttt{npm run test}).
+\placeholder{re-run at submission and paste your terminal output / screenshot.}
+
+\subsection{Coverage Summary}
+\label{app:coverage}
+Recorded with \texttt{npm run test:coverage} on the development machine:
+
+\begin{table}[H]
+\centering
+\caption{Jest coverage (actual recorded run)}
+\small
+\begin{tabular}{lrrrr}
+\toprule
+File & \% Stmts & \% Branch & \% Funcs & \% Lines \\
+\midrule
+All files & 89.77 & 73.33 & 91.01 & 90.88 \\
+src/database/DatabaseManager.js & 82.60 & 80.00 & 80.00 & 82.60 \\
+src/facades/BorrowFacade.js & 95.08 & 82.85 & 100 & 95.08 \\
+src/middleware/errorHandler.js & 35.29 & 7.14 & 75.00 & 33.33 \\
+src/middleware/validate.js & 92.00 & 90.90 & 100 & 91.66 \\
+src/models/* & 96.66 & 50.00 & 100 & 96.66 \\
+src/repositories/* & 94.64 & 70.58 & 95.45 & 96.22 \\
+src/services/FineService.js & 95.65 & 90.90 & 100 & 95.45 \\
+src/services/AuditService.js & 85.71 & 33.33 & 100 & 85.71 \\
+src/strategies/* & 93.75 & 90.47 & 83.33 & 93.75 \\
+src/utils/* & 100 & 100 & 100 & 100 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Interpretation: statement/line coverage is high for business logic; the main
+gap is untested branches of the centralised error handler (e.g.\ specific
+Mongoose error shapes). Identified improvement: add unit tests that feed
+\texttt{ValidationError}, \texttt{CastError} and duplicate-key errors into
+\texttt{errorHandler}.
+
+\subsection{TDD Red--Green Record}
+\label{app:tdd}
+Red run (unimplemented strategy): \texttt{Tests: 2 failed, 16 skipped,
+3 passed, 21 total} — failures: ``one overdue day $\rightarrow$ 10 BDT'' and
+``five overdue days $\rightarrow$ 50 BDT''. Green run (implemented):
+\texttt{Tests: 16 skipped, 5 passed, 21 total}. Full logs:
+\texttt{docs/evidence/tdd-red-run.txt}, \texttt{tdd-green-run.txt}.
+
+\subsection{Selenium E2E}
+\label{app:e2e}
+Recorded output (development machine):
+
+\begin{lstlisting}[language={},caption={e2e run (recorded)}]
+STEP 1 OK — dashboard loaded
+STEP 2 OK — book added, toast shown: Book "Selenium Test Book ..." added to the catalog.
+STEP 3 OK — member registered and visible in table
+STEP 4 OK — book issued, toast shown: Book issued to E2E Member. Due date: 2026-11-09
+STEP 5 OK — active borrow row visible
+STEP 6 OK — book returned, toast shown: Book returned on time. No fine.
+
+E2E TEST PASSED — issue/return workflow works through the UI
+\end{lstlisting}
+
+\placeholder{Add a screenshot of your own run and of the headed browser.}
+
+% =========================================================
+\section{Git Evidence}
+\label{app:git}
+% =========================================================
+\placeholder{Screenshots: git log graph, your commits, branch list.}
+
+% =========================================================
+\section{Pull-Request Evidence}
+\label{app:pr}
+% =========================================================
+\placeholder{Accepted PR with reviews; rejected/revised PR with comments.}
+
+% =========================================================
+\section{Merge-Conflict Evidence}
+\label{app:conflict}
+% =========================================================
+\placeholder{Conflict markers screenshot + resolved commit.}
+
+% =========================================================
+\section{CI Evidence}
+\label{app:ci}
+% =========================================================
+\placeholder{GitHub Actions successful run screenshot (run number + date).}
+
+% =========================================================
+\section{Swagger Evidence}
+\label{app:swagger}
+% =========================================================
+\placeholder{Screenshot of /api-docs with a "Try it out" response.}
+Live checks performed during development: \texttt{GET /api-docs $\rightarrow$
+200}; \texttt{GET /api-openapi.json} returned OpenAPI 3.0.3 with all
+documented paths.
+
+% =========================================================
+\section{Learning Log}
+\label{app:log}
+% =========================================================
+\placeholder{Your completed learning log (see docs/learning-log.md).}
+
+% =========================================================
+\section{Application Screenshots}
+\label{app:screens}
+% =========================================================
+\placeholder{Dashboard, Members, Books, Issue/Return, Fines, Audit pages
+from your running application (add PNGs to figures/ and reference them
+here).}
+
+\end{document}
