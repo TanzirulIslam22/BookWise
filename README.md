@@ -259,4 +259,5 @@ MIT — see source headers. Built for academic purposes.
 / /   F i n e   s t r a t e g y   p a t t e r n   l o g i c  
  / /   E x p e r i m e n t a l   p e n a l t y   m u l t i p l i e r   -   u n d e r   r e v i e w  
  / /   E x p e r i m e n t a l   p e n a l t y   m u l t i p l i e r   -   u n d e r   r e v i e w  
+ V e r s i o n :   1 . 0 . 0   -   P r o d u c t i o n  
  
