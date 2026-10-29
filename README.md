@@ -21,15 +21,15 @@ documentation.
 
 ## Technology stack
 
-| Layer | Technology |
-|-------|------------|
-| Frontend | React 18, Vite 5, Tailwind CSS 3.4, React Router 6, Axios |
-| Backend | Node.js 22, Express 4, JavaScript, REST |
-| Database | MongoDB (Atlas or local) via Mongoose 8 |
-| Testing | Jest 29 (unit + mocks), Supertest 7 (integration), Selenium WebDriver 4 (E2E) |
-| API docs | swagger-ui-express 5 + OpenAPI 3.0 (`server/docs/openapi.yaml`) |
-| CI | GitHub Actions (`.github/workflows/ci.yml`) |
-| Report | LaTeX (XeLaTeX/LuaLaTeX) in `docs/report/` |
+| Layer    | Technology                                                                    |
+| -------- | ----------------------------------------------------------------------------- |
+| Frontend | React 18, Vite 5, Tailwind CSS 3.4, React Router 6, Axios                     |
+| Backend  | Node.js 22, Express 4, JavaScript, REST                                       |
+| Database | MongoDB (Atlas or local) via Mongoose 8                                       |
+| Testing  | Jest 29 (unit + mocks), Supertest 7 (integration), Selenium WebDriver 4 (E2E) |
+| API docs | swagger-ui-express 5 + OpenAPI 3.0 (`server/docs/openapi.yaml`)               |
+| CI       | GitHub Actions (`.github/workflows/ci.yml`)                                   |
+| Report   | LaTeX (XeLaTeX/LuaLaTeX) in `docs/report/`                                    |
 
 ## Architecture overview
 
@@ -50,7 +50,7 @@ React SPA (client)  --HTTP/JSON-->  Express REST API (server)  --Mongoose-->  Mo
 
 - Node.js ≥ 18 (developed on Node 22)
 - npm ≥ 9
-- MongoDB: a free [MongoDB Atlas](https://www.mongodb.com/atlas) cluster **or** a local `mongod` — *or simply use the in-memory demo mode below, which needs no MongoDB at all*
+- MongoDB: a free [MongoDB Atlas](https://www.mongodb.com/atlas) cluster **or** a local `mongod` — _or simply use the in-memory demo mode below, which needs no MongoDB at all_
 - Chrome or Edge for Selenium tests
 - (Report only) XeLaTeX or LuaLaTeX with `fontspec` (e.g. TeX Live / MiKTeX)
 
@@ -81,15 +81,15 @@ cd ..
 
 Copy `.env.example` to `server/.env`. Never commit `.env`.
 
-| Variable | Meaning | Example |
-|----------|---------|---------|
-| `PORT` | API port | `5000` |
-| `MONGODB_URI` | Real database | `mongodb://127.0.0.1:27017/smart_library` or Atlas SRV string |
-| `LOAN_PERIOD_DAYS` | Loan length | `14` |
-| `CLIENT_ORIGIN` | CORS origin for the React dev server | `http://localhost:5173` |
-| `ADMIN_USERNAME` | Login-gate username | `librarian` |
-| `ADMIN_PASSWORD` | Login-gate password (change it!) | `bookwise123` |
-| `MONGODB_URI_TEST` | Optional; leave empty to let tests spin up an isolated in-memory MongoDB | (empty) |
+| Variable           | Meaning                                                                  | Example                                                       |
+| ------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| `PORT`             | API port                                                                 | `5000`                                                        |
+| `MONGODB_URI`      | Real database                                                            | `mongodb://127.0.0.1:27017/smart_library` or Atlas SRV string |
+| `LOAN_PERIOD_DAYS` | Loan length                                                              | `14`                                                          |
+| `CLIENT_ORIGIN`    | CORS origin for the React dev server                                     | `http://localhost:5173`                                       |
+| `ADMIN_USERNAME`   | Login-gate username                                                      | `librarian`                                                   |
+| `ADMIN_PASSWORD`   | Login-gate password (change it!)                                         | `bookwise123`                                                 |
+| `MONGODB_URI_TEST` | Optional; leave empty to let tests spin up an isolated in-memory MongoDB | (empty)                                                       |
 
 ## Running the application
 
@@ -168,23 +168,23 @@ change `PORT`; corporate proxies may block Selenium Manager's driver download
 
 ## REST API (summary)
 
-| Method | URL | Purpose |
-|--------|-----|---------|
-| POST | `/api/auth/login` | Log in the librarian/admin operator |
-| POST | `/api/members` | Register member |
-| GET | `/api/members?q=&role=` | List/search members |
-| GET | `/api/members/:id` | Member details |
-| POST | `/api/books` | Add book |
-| GET | `/api/books?q=` | List/search books |
-| GET | `/api/books/:id` | Book details |
-| POST | `/api/borrowings/issue` | Issue book `{memberId, bookId}` |
-| POST | `/api/borrowings/return/:id` | Return book |
-| GET | `/api/borrowings?status=` | List records |
-| GET | `/api/fines/overdue` | Overdue records with live fines |
-| GET | `/api/fines/preview/:id` | Fine preview (no state change) |
-| GET | `/api/audits?eventType=` | Audit history |
-| GET | `/api/stats` | Dashboard statistics |
-| GET | `/api-docs` | Swagger UI |
+| Method | URL                          | Purpose                             |
+| ------ | ---------------------------- | ----------------------------------- |
+| POST   | `/api/auth/login`            | Log in the librarian/admin operator |
+| POST   | `/api/members`               | Register member                     |
+| GET    | `/api/members?q=&role=`      | List/search members                 |
+| GET    | `/api/members/:id`           | Member details                      |
+| POST   | `/api/books`                 | Add book                            |
+| GET    | `/api/books?q=`              | List/search books                   |
+| GET    | `/api/books/:id`             | Book details                        |
+| POST   | `/api/borrowings/issue`      | Issue book `{memberId, bookId}`     |
+| POST   | `/api/borrowings/return/:id` | Return book                         |
+| GET    | `/api/borrowings?status=`    | List records                        |
+| GET    | `/api/fines/overdue`         | Overdue records with live fines     |
+| GET    | `/api/fines/preview/:id`     | Fine preview (no state change)      |
+| GET    | `/api/audits?eventType=`     | Audit history                       |
+| GET    | `/api/stats`                 | Dashboard statistics                |
+| GET    | `/api-docs`                  | Swagger UI                          |
 
 Full request/response schemas: `server/docs/openapi.yaml` (rendered at
 `/api-docs`). Try any endpoint live from Swagger UI's "Try it out" button.
@@ -256,12 +256,4 @@ explain any file during the viva.
 ## License
 
 MIT — see source headers. Built for academic purposes.
-/ /   F i n e   s t r a t e g y   p a t t e r n   l o g i c  
- / /   E x p e r i m e n t a l   p e n a l t y   m u l t i p l i e r   -   u n d e r   r e v i e w  
- / /   E x p e r i m e n t a l   p e n a l t y   m u l t i p l i e r   -   u n d e r   r e v i e w  
- V e r s i o n :   1 . 0 . 0   -   P r o d u c t i o n  
- V e r s i o n :   1 . 0 . 0 - b e t a   -   T e s t i n g  
- P r o j e c t   V e r s i o n :   1 . 0 . 0 - p r o d u c t i o n  
- P r o j e c t   V e r s i o n :   1 . 0 . 0 - b e t a  
- P r o j e c t   V e r s i o n :   1 . 0 . 0 - p r o d u c t i o n  
- 
+Project Version: 1.0.0 - Production Release
