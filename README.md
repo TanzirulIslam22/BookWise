@@ -256,3 +256,5 @@ explain any file during the viva.
 ## License
 
 MIT — see source headers. Built for academic purposes.
+/ /   F i n e   s t r a t e g y   p a t t e r n   l o g i c  
+ 
